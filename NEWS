@@ -6,9 +6,23 @@ See the end for copying conditions.
 
 Please send GNU Wget bug reports to <bug-wget@gnu.org>.
 
-xx.xx.2015 Release 2.0.0
-  Add HTTP/2.0 support
+* Changes in Wget2 0.99.0
 
+* Alpha release
+
+* TLS session resumption
+
+* TLS False Start
+
+* TCP Fast Open with TLS 
+
+* Use Doxygen for docs
+
+* Use gnulib
+
+* Add HTTP/2.0 support
+
+*** Previous Mget releases ***
 02.05.2015
   New release v0.1.9
   Made cross-compilable with MinGW on Linux

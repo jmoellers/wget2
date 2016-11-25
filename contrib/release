@@ -1,0 +1,86 @@
+#!/bin/bash -e
+#
+# Written 2016 by Tim Ruehsen
+
+wget2_ver=`grep '^AC_INIT(' configure.ac|cut -d'[' -f3|cut -d']' -f1`
+echo "Current version of Wget2 is $wget2_ver"
+libwget_ver=`grep '^AC_SUBST(\[LIBWGET_SO_VERSION\]' configure.ac|cut -d'[' -f3|cut -d']' -f1`
+echo "Current version of libwget is $libwget_ver"
+echo
+echo -n "Enter Y if that is OK, else enter N and edit configure.ac: "
+read x
+[ "$x" != "y" -a "$x" != "Y" ] && exit 0
+
+echo
+grep -1 "Changes in Wget2" NEWS
+echo "Did you edit the NEWS file ? [y/N] "
+read x
+[ "$x" != "y" -a "$x" != "Y" ] && exit 0
+
+echo
+./bootstrap >/dev/null
+./configure -q
+make -s clean
+make -s
+make -s dist >/dev/null
+make -s distcheck >/dev/null
+
+while true; do
+  echo "Alpha or Regular release ? [r/A] "
+  read x
+  if [ "$x" = "r" -o "$x" = "R" ]; then
+    directory="/incoming/ftp"
+    break
+  elif [ "$x" = "a" -o "$x" = "A" ]; then
+    directory="/incoming/alpha"
+    break
+  fi
+done
+
+x=$(gpg --list-secret-keys 2>/dev/null|grep ^sec|awk '{ print $2 }')
+#echo $x
+if [ "$x" = "" ]; then
+  echo No signing key found - please check with 'gpg --list-secret-keys'
+  exit 1
+fi
+
+# arrays just work in Bash
+keys=($x)
+if [ ${#keys[@] -eq 1 ]; then
+  IFS='/' arr=($x)
+  signing_key=${arr[1]}
+else
+  for ((i=0; i < ${#keys[@]}; i++)); do
+    echo "$((i+1))) ${keys[i]}"
+  done
+  while true; do
+    echo -n "Enter 1-${#keys[@]}: "
+    read x
+
+    # check for digits only
+    if [ -n "${i//[0-9]/}" ]; then continue; fi
+
+    if [ $x -ge 1 -o $x -le ${#keys[@]} ]; then
+      IFS='/' arr=(${keys[$((x-1))]})
+      signing_key=${arr[1]}
+      break
+    fi
+  done
+fi
+echo $signing_key
+
+# fetch wget2 version again, just in case
+wget2_ver=`grep '^AC_INIT(' configure.ac|cut -d'[' -f3|cut -d']' -f1`
+wget2_tarball="wget2-${wget_ver}.tar.gz"
+gpg --default-key $signing_key --yes -b $wget2_tarball
+
+echo -e "version: ${wget2_version}\nfilename: ${wget2_tarball}\ndirectory: wget2\n" >${wget2_tarball}.directive
+gpg --default-key $signing_key --yes --clearsign ${wget2_tarball}.directive
+
+ftp -v -n -i -p ftp-upload.gnu.org <<EOF
+user anonymous
+cd $directory
+put ${wget2_tarball}
+put ${wget2_tarball}.sig
+put ${wget2_tarball}.directive.asc
+EOF
